@@ -13,7 +13,7 @@ import (
 
 func main() {
 	minSequentRepeats := flag.Int("sequentrepeats", 9, "Минимальная длина повторов символов подряд")
-	minRepeats := flag.Int("repeats", 13, "Минимальная длина повтора символа в любом месте")
+	minRepeats := flag.Int("repeats", 14, "Минимальная длина повтора символа в любом месте")
 	maxUnique := flag.Int("unique", 10, "Максимальное количество уникальных символов")
 	numWorkers := flag.Int("workers", 16, "Количество потоков")
 
@@ -47,7 +47,7 @@ func worker(minSequentRepeats, minRepeats, maxUnique int, resultChan chan string
 
 	for {
 		*attempts++
-		if *attempts%10000000 == 0 {
+		if *attempts%100000000 == 0 {
 			fmt.Printf("Попыток (млн): %d...\n", *attempts/1000000)
 		}
 
