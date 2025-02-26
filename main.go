@@ -9,6 +9,7 @@ import (
 	"github.com/btcsuite/btcd/btcec/v2"
 	"github.com/btcsuite/btcd/btcutil"
 	"github.com/btcsuite/btcd/chaincfg"
+	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
 func main() {
@@ -16,8 +17,24 @@ func main() {
 	minRepeats := flag.Int("repeats", 14, "Минимальная длина повтора символа в любом месте")
 	maxUnique := flag.Int("unique", 10, "Максимальное количество уникальных символов")
 	numWorkers := flag.Int("workers", 16, "Количество потоков")
+	telegramToken := flag.String("token", "", "Токен Telegram-бота")
+	telegramChatID := flag.Int64("chat", 0, "ID чата в Telegram для отправки результатов")
 
 	flag.Parse()
+
+	// Проверяем, указаны ли параметры Telegram
+	var bot *tgbotapi.BotAPI
+	if *telegramToken != "" && *telegramChatID != 0 {
+		var err error
+		bot, err = tgbotapi.NewBotAPI(*telegramToken)
+		if err != nil {
+			fmt.Println("Ошибка инициализации Telegram-бота:", err)
+			return
+		}
+		fmt.Println("Telegram-бот успешно подключён")
+	} else {
+		fmt.Println("Telegram-бот не настроен (укажи -token и -chat)")
+	}
 
 	attempts := 0
 	var wg sync.WaitGroup
@@ -25,9 +42,10 @@ func main() {
 
 	fmt.Printf("Запуск с настройками: sequentrepeats=%d, repeats=%d, unique=%d, workers=%d\n", *minSequentRepeats, *minRepeats, *maxUnique, *numWorkers)
 
+	// Запускаем воркеров
 	for i := 0; i < *numWorkers; i++ {
 		wg.Add(1)
-		go worker(*minSequentRepeats, *minRepeats, *maxUnique, resultChan, &wg, &attempts)
+		go worker(*minSequentRepeats, *minRepeats, *maxUnique, resultChan, &wg, &attempts, bot, *telegramChatID)
 	}
 
 	// Закрываем канал после завершения всех воркеров
@@ -42,7 +60,7 @@ func main() {
 	}
 }
 
-func worker(minSequentRepeats, minRepeats, maxUnique int, resultChan chan string, wg *sync.WaitGroup, attempts *int) {
+func worker(minSequentRepeats, minRepeats, maxUnique int, resultChan chan string, wg *sync.WaitGroup, attempts *int, bot *tgbotapi.BotAPI, chatID int64) {
 	defer wg.Done()
 
 	for {
@@ -69,7 +87,19 @@ func worker(minSequentRepeats, minRepeats, maxUnique int, resultChan chan string
 		if pretty != "" {
 			result := fmt.Sprintf("%s Адрес: %s, ключ: %s", pretty, addrStr, privKeyToWIF(privKey))
 			resultChan <- result
+
+			if bot != nil {
+				go sendToTelegram(bot, chatID, result)
+			}
 		}
+	}
+}
+
+func sendToTelegram(bot *tgbotapi.BotAPI, chatID int64, message string) {
+	msg := tgbotapi.NewMessage(chatID, message)
+	_, err := bot.Send(msg)
+	if err != nil {
+		fmt.Println("Ошибка отправки в Telegram:", err)
 	}
 }
 
